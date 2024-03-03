@@ -11,7 +11,7 @@
 
 ![Home](images/home.png)
 ![Side-By-side](images/side-by-side-create-join.png)
-![Decide-Turn](images/init-game.png")
-![GameBoard](images/board1)
-![GameBoard](images/board2)
-![GameBoard](images/board3)
+![Decide-Turn](images/init-game.png)
+![GameBoard](images/board1.png)
+![GameBoard](images/board2.png)
+![GameBoard](images/board3.png)
