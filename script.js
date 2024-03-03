@@ -1,13 +1,3 @@
-/**
-*
-* @Name : ChessDesktop/script.js
-* @Version : 1.0
-* @Programmer : Max
-* @Date : 2019-05-23
-* @Released under : https://github.com/BaseMax/ChessDesktop/blob/master/LICENSE
-* @Repository : https://github.com/BaseMax/ChessDesktop
-*
-**/
 const Peer = require("./Peer");
 const uuid = require('uuid');
 let table = document.querySelector("#table")
@@ -28,6 +18,54 @@ class Client {
 let currentClient;
 let enemyClient;
 
+const portsInGame = []
+
+function generateBtn(portHost, divElement) {
+	const divContainer = document.createElement("div");
+	divContainer.classList.add("center")
+	const initGameBtn = document.createElement("button");
+	initGameBtn.type = "button";
+	initGameBtn.id = "createServerPortButton";
+	initGameBtn.textContent = "Iniciar Jogo - Definir Turno";
+	initGameBtn.disabled = currentClient.peer.port === portHost ? false : true;
+	initGameBtn.classList.add("btn")
+	initGameBtn.addEventListener("click", (e) => {
+		console.log("Iniciando Jogo")
+		e.preventDefault()
+		console.log(currentClient.peer)
+		console.log(currentClient.peer.port)
+		console.log(currentClient.peer.knownHosts[0].port)
+		console.log(portHost)
+		portsInGame.push(parseInt(portHost))
+		portsInGame.push(parseInt(currentClient.peer.knownHosts[0].port))
+		const turnDefine = defineTurn(portsInGame)
+		currentClient.peer.broadcastMessage({ type: "turn", message: turnDefine })
+		cleanupBoard()
+		// generateBoard(initialBoard)
+		// generateChat()
+	})
+	divContainer.appendChild(initGameBtn)
+	divElement.appendChild(divContainer)
+}
+
+function generateMenuInit(portHost) {
+	const divElement = document.getElementById("table"); //
+	while (divElement.firstChild) {
+		divElement.removeChild(divElement.firstChild);
+	}
+
+	generateBtn(portHost, divElement)
+}
+
+// let initialBoard = [
+// 	[null, null, 0, 0, 0, null, null,],
+// 	[null, null, 0, 0, 0, null, null,],
+// 	[0, 0, 0, 0, 0, 0, 0,],
+// 	[0, 0, 0, 0, 1, 1, 0,],
+// 	[0, 0, 0, 0, 0, 0, 0,],
+// 	[null, null, 0, 0, 0, null, null,],
+// 	[null, null, 0, 0, 0, null, null,],
+// ]
 
 let initialBoard = [
 	[null, null, 1, 1, 1, null, null,],
@@ -40,12 +78,57 @@ let initialBoard = [
 ]
 
 
+function cleanupBoard() {
+	const container = document.querySelector('#table')
+	const turn = document.querySelector('#turn')
+	while (turn.firstChild) {
+		turn.removeChild(turn.firstChild)
+	}
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
+	const chat = document.querySelector('#chat')
+	while (chat.firstChild) {
+		chat.removeChild(chat.firstChild)
+	}
+	const giveup = document.querySelector('#giveup')
+	while (giveup.firstChild) {
+		giveup.removeChild(giveup.firstChild)
+	}
+}
+
+function cleanupBoardWithoutChat() {
+	const container = document.querySelector('#table')
+	const turn = document.querySelector('#turn')
+	while (turn.firstChild) {
+		turn.removeChild(turn.firstChild)
+	}
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
+	const giveup = document.querySelector('#giveup')
+	while (giveup.firstChild) {
+		giveup.removeChild(giveup.firstChild)
+	}
+}
+
+
 function generateBoard(boardArray) {
 
-	const divElement = document.getElementById("table"); //
-	while (divElement.firstChild) {
-		divElement.removeChild(divElement.firstChild);
-	}
+	cleanupBoardWithoutChat()
+
+	const turnElement = document.getElementById("turn"); //
+	const turnTitle = document.createElement('p')
+	turnTitle.textContent = `Turno Atual: ${turn}`
+
+	const playerTitle = document.createElement('p')
+	playerTitle.textContent = `Você é: ${currentClient.port}`
+
+	turnElement.appendChild(turnTitle)
+	turnElement.appendChild(playerTitle)
+	turnElement.classList.add("active")
+
+
 
 	for (let row of boardArray) {
 		const rowElement = document.createElement('div');
@@ -111,8 +194,6 @@ function generateBoard(boardArray) {
 			}
 		})
 	})
-
-	console.log(emptyPlaces)
 	emptyPlaces.forEach(function (empty, index, array) {
 		empty.addEventListener("click", function () {
 			console.log("AQUI clicando")
@@ -147,6 +228,34 @@ function generateBoard(boardArray) {
 			}
 		})
 	})
+
+	const giveup = document.querySelector('#giveup')
+	const btnGiveUp = document.createElement('button');
+	btnGiveUp.type = "button";
+	btnGiveUp.id = "giveupBtn";
+	btnGiveUp.textContent = "Desistir";
+	btnGiveUp.classList.add("btn")
+	btnGiveUp.addEventListener("click", (e) => {
+		e.preventDefault()
+
+		alert(`O jogador ${currentClient.port} desistiu`)
+		currentClient.peer.broadcastMessage({ type: 'giveup', message: currentClient.port })
+		currentClient.peer.close()
+		cleanupBoard()
+		initialBoard = [
+			[null, null, 1, 1, 1, null, null,],
+			[null, null, 1, 1, 1, null, null,],
+			[1, 1, 1, 1, 1, 1, 1,],
+			[1, 1, 1, 0, 1, 1, 1,],
+			[1, 1, 1, 1, 1, 1, 1,],
+			[null, null, 1, 1, 1, null, null,],
+			[null, null, 1, 1, 1, null, null,],
+
+		]
+		generateMenu()
+	})
+	giveup.appendChild(btnGiveUp)
+
 
 	return table;
 }
@@ -204,6 +313,10 @@ function enableButtons() {
 }
 
 
+function defineTurn(ports) {
+	return Math.random() < 0.5 ? ports[0] : ports[1];
+}
+
 function initGame() {
 	const divElement = document.getElementById("table"); //
 	while (divElement.firstChild) {
@@ -251,15 +364,15 @@ function createServer(createServerButton, joinServerButton) {
 	createServerBtn.classList.add("btn")
 	createServerBtn.addEventListener("click", () => {
 
-		function onConnection(socket) {
-			currentClient.peer.broadcastMessage({ type: "init", id: currentClient.id, message: currentClient.id, myPort: currentClient.port })
-			// Adicionar idPLayer enemy
-		}
+		function onConnection(socket) { }
 
 		// Receber e exibir mensagem recebida
 		function onData(socket, data) {
 			const { remoteAddress } = socket;
+			console.log("Data received")
+			console.log(JSON.stringify(data));
 			const { type, id, message, myPort } = data;
+
 
 
 			if (type === "message") {
@@ -268,43 +381,76 @@ function createServer(createServerButton, joinServerButton) {
 			}
 
 			if (type === "move") {
-				console.log("MOVE AQUI")
-				console.log("TURNO AGORA")
-				console.log(turn)
-
-				console.log("MEU ID")
-				console.log(currentClient.id)
-				if (turn === currentClient.id) {
-					turn = id
-				} else {
-					turn = currentClient.id
-				}
+				turn = currentClient.port
+				initialBoard = message
 				generateBoard(message)
 			}
 
-			if (type === "init") {
-				enemyIdPlayer = message
+			if (type === "turn") {
+				turn = message
+				cleanupBoard()
+				generateBoard(initialBoard)
+				generateChat()
+			}
+
+			if (type === "giveup") {
+				alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
+
+				cleanupBoard()
+				currentClient.peer.close()
+				initialBoard = [
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[1, 1, 1, 0, 1, 1, 1,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+
+				]
+				delete currentClient
+				generateMenu()
+			}
+
+			if (type === "endGame") {
+				alert(`Vencedor é: ${message}, voce perdeu.`)
+				currentClient.peer.close()
+				cleanupBoard()
+				initialBoard = [
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[1, 1, 1, 0, 1, 1, 1,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+
+				]
+				delete currentClient
+				generateMenu()
 			}
 		}
 
 		const portNumber = serverPortInput.value;
 		const peer = new Peer(portNumber)
 		currentClient = new Client(portNumber, uuid.v4(), peer)
-		turn = currentClient.id;
+
 
 		peer.onData = onData
 		peer.onConnection = onConnection
 
 		const intervalo = setInterval(function () {
-			console.log(peer.connections)
-			console.log(peer.knownHosts)
 			if (peer.connections.length !== 0 && peer.knownHosts.length !== 0) {
-				initGame();
-
+				generateMenuInit(portNumber);
+				createServerBtn.disabled = false;
+				rollBack.disabled = true;
 				// Remova o intervalo
 				clearInterval(intervalo);
 			}
 		}, 1000);
+
+		createServerBtn.disabled = true;
+		rollBack.disabled = true;
 
 
 	})
@@ -317,15 +463,12 @@ function createServer(createServerButton, joinServerButton) {
 	rollBack.disabled = false;
 	rollBack.classList.add("btn")
 	rollBack.addEventListener('click', () => {
-		form.removeChild(portLabel)
-		form.removeChild(serverPortInput)
-		form.removeChild(createServerBtn)
 
-		form.appendChild(nameLabel);
-		form.appendChild(nameInput)
-		form.appendChild(createServerButton);
-		form.appendChild(joinServerButton);
-		form.removeChild(rollBack)
+		cleanupBoard()
+		generateMenu()
+
+		createServerBtn.disabled = false;
+		rollBack.disabled = false;
 	})
 	form.appendChild(rollBack);
 }
@@ -383,9 +526,7 @@ function joinServer(createServerButton, joinServerButton) {
 	joinServerBtn.addEventListener("click", () => {
 
 
-		function onConnection(socket) {
-			currentClient.peer.broadcastMessage({ type: "init", id: currentClient.id, message: currentClient.id, myPort: currentClient.port })
-		}
+		function onConnection(socket) { }
 
 		// Receber e exibir mensagem recebida
 		function onData(socket, data) {
@@ -399,22 +540,55 @@ function joinServer(createServerButton, joinServerButton) {
 			}
 
 			if (type === "move") {
-				console.log("MOVE AQUI")
-				console.log("TURNO AGORA")
-				console.log(turn)
-
-				console.log("MEU ID")
-				console.log(currentClient.id)
-				if (turn === currentClient.id) {
-					turn = enemyIdPlayer
-				} else {
-					turn = currentClient.id
-				}
+				turn = currentClient.port
+				initialBoard = message
 				generateBoard(message)
 			}
 
-			if (type === "init") {
-				enemyIdPlayer = message
+
+			if (type === "turn") {
+				turn = message
+				currentClient.peer.broadcastMessage({ type: "turn", message: message })
+				cleanupBoard()
+				generateBoard(initialBoard)
+				generateChat()
+			}
+
+			if (type === "giveup") {
+				alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
+
+				cleanupBoard()
+				currentClient.peer.close()
+				delete currentClient
+				initialBoard = [
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[1, 1, 1, 0, 1, 1, 1,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+
+				]
+				generateMenu()
+			}
+
+			if (type === "endGame") {
+				alert(`Vencedor é: ${message}, voce perdeu.`)
+				currentClient.peer.close()
+				cleanupBoard()
+				initialBoard = [
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[1, 1, 1, 0, 1, 1, 1,],
+					[1, 1, 1, 1, 1, 1, 1,],
+					[null, null, 1, 1, 1, null, null,],
+					[null, null, 1, 1, 1, null, null,],
+
+				]
+				delete currentClient
+				generateMenu()
 			}
 		}
 
@@ -422,7 +596,6 @@ function joinServer(createServerButton, joinServerButton) {
 		const peer = new Peer(portNumber)
 		currentClient = new Client(portNumber, uuid.v4(), peer)
 		const host = serverAddressInput.value;
-
 
 		peer.connectTo(host)
 
@@ -432,7 +605,7 @@ function joinServer(createServerButton, joinServerButton) {
 
 		const intervalo = setInterval(function () {
 			if (peer.connections !== 0 || peer.knownHosts !== 0) {
-				initGame();
+				generateMenuInit(host);
 
 				// Remova o intervalo
 				clearInterval(intervalo);
@@ -449,15 +622,8 @@ function joinServer(createServerButton, joinServerButton) {
 	rollBack.disabled = false;
 	rollBack.classList.add("btn")
 	rollBack.addEventListener('click', () => {
-		form.removeChild(addressLabel)
-		form.removeChild(serverAddressInput)
-		form.removeChild(joinServerBtn)
-
-		form.appendChild(nameLabel);
-		form.appendChild(nameInput)
-		form.appendChild(createServerButton);
-		form.appendChild(joinServerButton);
-		form.removeChild(rollBack)
+		cleanupBoard()
+		generateMenu()
 	})
 	form.appendChild(rollBack);
 }
@@ -544,6 +710,21 @@ function generateChat() {
 }
 
 
+function verifyWinner() {
+	let sum = 0
+	initialBoard.forEach((value) => {
+		value.forEach((piece) => {
+			if (piece == 0 || piece == 1) {
+				sum += piece
+			}
+		})
+	})
+	console.log(sum)
+	if (sum == 1) {
+		return true;
+	}
+}
+
 //generateBoard(initialBoard)
 
 //generateChat()
@@ -553,7 +734,6 @@ function move(currentPos, newPos) {
 	if (currentPos[0] - newPos[0] == 0) {
 		const index = (((currentPos[1] - newPos[1]) > 0) ? -1 : 1);
 		const intermediate = currentPos[1] + (index);
-		console.log(intermediate)
 		if ((initialBoard[currentPos[0]][intermediate] == 1) && (initialBoard[newPos[0]][newPos[1]] == 0)) {
 			update(currentPos, newPos, [currentPos[0], intermediate]) // Move the piece and remove the jumped piece
 		}
@@ -570,36 +750,55 @@ function move(currentPos, newPos) {
 }
 
 function update(currentPos, newPos, intermediate) {
-	console.log("ATUALIZANDO BOARD")
 
 	initialBoard[currentPos[0]][currentPos[1]] = 0;
 	initialBoard[newPos[0]][newPos[1]] = 1;
 	initialBoard[intermediate[0]][intermediate[1]] = 0;
 
+	if (verifyWinner()) {
+		alert(`Vencedor é: ${turn}`)
+		currentClient.peer.broadcastMessage({ type: 'endGame', message: currentClient.port })
+		currentClient.peer.close()
+		cleanupBoard()
+		initialBoard = [
+			[null, null, 1, 1, 1, null, null,],
+			[null, null, 1, 1, 1, null, null,],
+			[1, 1, 1, 1, 1, 1, 1,],
+			[1, 1, 1, 0, 1, 1, 1,],
+			[1, 1, 1, 1, 1, 1, 1,],
+			[null, null, 1, 1, 1, null, null,],
+			[null, null, 1, 1, 1, null, null,],
+
+		]
+		delete currentClient
+		generateMenu()
+		return
+	}
+
 	currentClient.peer.broadcastMessage({ type: "move", message: initialBoard, id: currentClient.id, myPort: currentClient.port })
+	turn = currentClient.peer.knownHosts[0].port
 
 	generateBoard(initialBoard)
 }
 
 function verifyValidMove(turn, currentPos, newPos) {
 	console.log("VERIFICANDO MOVIMENTO")
-	console.log(currentPos)
-	console.log(newPos)
-	console.log("QUEM TÁ FAZENDO O MOVIMENTO")
-	console.log(currentClient.id)
-
-	console.log("TURNO")
 	console.log(turn)
-	if (currentClient.id !== turn) {
+	console.log(currentClient.port)
+	console.log(parseInt(currentClient.port) !== turn)
+	if (parseInt(currentClient.port) !== parseInt(turn)) {
 		return false;
 	}
+	console.log("Passou")
 	if (currentPos[0] - newPos[0] == 0) {
 		const index = (((currentPos[1] - newPos[1]) > 0) ? -1 : 1);
 		const intermediate = currentPos[1] + (index);
 		console.log(intermediate)
+		console.log((initialBoard[currentPos[0]][intermediate] == 1) && (initialBoard[newPos[0]][newPos[1]] == 0))
 		if ((initialBoard[currentPos[0]][intermediate] == 1) && (initialBoard[newPos[0]][newPos[1]] == 0)) {
 			return true;
 		}
+		console.log("Retornando Invalido movimento")
 		return false;
 	}
 
@@ -610,6 +809,7 @@ function verifyValidMove(turn, currentPos, newPos) {
 		if ((initialBoard[intermediate][newPos[1]] == 1) && (initialBoard[newPos[0]][newPos[1]] == 0)) {
 			return true;
 		}
+		console.log("Retornando Invalido movimento")
 		return false;
 	}
 }

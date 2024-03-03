@@ -7,11 +7,11 @@ module.exports = class Peer {
         this.knownHosts = [];
 
         // Inicializa o servidor com a porta informada
-        const server = net.createServer((socket) =>
+        this.server = net.createServer((socket) =>
             this.handleClientConnection(socket)
         );
 
-        server.listen(port, () => console.log("Listening on port: ", port));
+        this.server.listen(port, () => console.log("Listening on port: ", port));
     }
 
     // Estabelece conexão com outro Peer que atua como servidor
@@ -163,9 +163,6 @@ module.exports = class Peer {
     // Envia mensagem a um peer individual
     sendMessage(socket, jsonData) {
 
-        console.log(jsonData)
-        console.log(socket)
-
         const data = JSON.stringify(jsonData);
 
         try {
@@ -173,5 +170,9 @@ module.exports = class Peer {
                 socket.write(data);
             }
         } catch (e) { }
+    }
+
+    close() {
+        this.server.close()
     }
 };

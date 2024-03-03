@@ -1,12 +1,24 @@
 {
-  "name": "leftonlyone",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+	"name": "leftonlyone",
+	"version": "1.0.0",
+	"description": "Left Only One",
+	"main": "main.js",
+	"scripts": {
+		"start": "electron ."
+	},
+	"keywords": [
+		"Electron",
+		"Start",
+		"Tutorial",
+		"Demo",
+		"Sample"
+	],
+	"license": "GPL3",
+	"devDependencies": {
+		"electron": ">=7.2.4"
+	},
+	"dependencies": {
+		"electron": ">=7.2.4",
+		"uuid": "^9.0.1"
+	}
 }

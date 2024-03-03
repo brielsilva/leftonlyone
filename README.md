@@ -1,17 +1,9 @@
-# ChessDesktop
+# Left Only One
 
-Chess game with two player based on electron. (SOON)
+```
+    using node 16.20
 
-![ScreenShot](screenshot1.png)
+    npm install
 
-![ScreenShot](screenshot2.png)
-
----------
-
-## Similar Project
-
-https://github.com/BaseMax/ChessWeb
-
-# License
-
-ChessDesktopElectron is licensed under the [GNU General Public License](LICENSE).
+    npm run start
+```
