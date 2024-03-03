@@ -376,7 +376,7 @@ function createServer(createServerButton, joinServerButton) {
 
 
 			if (type === "message") {
-				processChatInput(id, message, currentClient.chatContainer)
+				processChatInput(myPort, message, currentClient.chatContainer)
 				console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
 			}
 
@@ -535,7 +535,7 @@ function joinServer(createServerButton, joinServerButton) {
 
 
 			if (type === "message") {
-				processChatInput(id, message, currentClient.chatContainer)
+				processChatInput(myPort, message, currentClient.chatContainer)
 				console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
 			}
 
@@ -662,8 +662,8 @@ function processChatInput(id, chatInput, chatElement) {
 	const messageElement = document.createElement('div');
 	messageElement.classList.add('message');
 	const messageContent = document.createElement('span');
-	messageContent.textContent = chatInput
-	if (currentClient.id !== id) {
+	messageContent.textContent = `${id}: ${chatInput}`
+	if (currentClient.port !== id) {
 		messageContent.classList.add('enemy')
 	} else {
 		messageContent.classList.add('player')
@@ -698,7 +698,7 @@ function generateChat() {
 
 			console.log(currentClient)
 			console.log(currentClient.peer)
-			processChatInput(currentClient.id, chatInput.value, messagesContainer);
+			processChatInput(currentClient.port, chatInput.value, messagesContainer);
 			currentClient.peer.broadcastMessage({ type: "message", id: currentClient.id, message: chatInput.value, myPort: currentClient.port })
 			chatInput.value = ""; // Limpa o campo de entrada após o processamento
 		}
