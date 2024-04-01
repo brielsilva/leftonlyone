@@ -15,10 +15,14 @@
 	],
 	"license": "GPL3",
 	"devDependencies": {
+		"@electron/rebuild": "^3.6.0",
 		"electron": ">=7.2.4"
 	},
 	"dependencies": {
+		"@grpc/grpc-js": "^1.10.4",
+		"@grpc/proto-loader": "^0.7.12",
 		"electron": ">=7.2.4",
+		"grpc-promise": "^1.4.0",
 		"uuid": "^9.0.1"
 	}
 }

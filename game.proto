@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package gamePackage;
+
+service GameAndChat {
+    rpc newGame(Empty) returns (NewBoard) {};
+    rpc newBoard(stream NewBoard) returns (stream NewBoard){};
+    rpc sendEndTurn(Connection) returns (Empty){};
+    rpc sendGiveUp(Connection) returns (Empty){};
+
+    rpc join(stream Message) returns (stream Message) {};
+    rpc send(Message) returns (Message){};
+}
+message Empty {
+
+}
+
+message RowOfPieces {
+    repeated int32 rows = 1;
+}
+
+message Board {
+    repeated RowOfPieces cols = 1;
+}
+
+message Connection {
+    string user_id = 1; // Who called
+    string send_to = 2; // Who is Recieving
+}
+
+message GameState {
+
+}
+
+message Message {
+    string user_id = 1;
+    string text = 2;
+}
+
+message NewBoard {
+    required Board board = 1;
+}
+
+message NewMessage {
+    required Message message = 2;
+}
+

@@ -1,3 +1,5 @@
+const grpc = require("@grpc/grpc-js");
+const protoLoader = require("@grpc/proto-loader");
 const Peer = require("./Peer");
 const uuid = require('uuid');
 let table = document.querySelector("#table")
@@ -5,6 +7,7 @@ let timeMe = true //true:bottom(black), false: top(white)
 let pieceMe = true //true:black, false:white
 // console.log(pieces)
 
+const REMOTE_SERVER = "0.0.0.0:3000"
 let turn;
 
 class Client {
@@ -14,6 +17,26 @@ class Client {
 		this.peer = peer;
 	}
 }
+
+let client; // gRPC client
+let chatStream; // gRPC chat stream
+let boardStream; // gRPC board stream
+
+const proto = grpc.loadPackageDefinition(
+	protoLoader.loadSync("game.proto", {
+		keepCase: true,
+		longs: String,
+		enums: String,
+		defaults: true,
+		oneofs: true
+	})
+);
+
+client = new proto.gamePackage.GameAndChat(
+	REMOTE_SERVER,
+	grpc.credentials.createInsecure()
+);
+
 
 let currentClient;
 let enemyClient;
@@ -57,25 +80,25 @@ function generateMenuInit(portHost) {
 	generateBtn(portHost, divElement)
 }
 
-// let initialBoard = [
-// 	[null, null, 0, 0, 0, null, null,],
-// 	[null, null, 0, 0, 0, null, null,],
-// 	[0, 0, 0, 0, 0, 0, 0,],
-// 	[0, 0, 0, 0, 1, 1, 0,],
-// 	[0, 0, 0, 0, 0, 0, 0,],
-// 	[null, null, 0, 0, 0, null, null,],
-// 	[null, null, 0, 0, 0, null, null,],
-// ]
-
 let initialBoard = [
-	[null, null, 1, 1, 1, null, null,],
-	[null, null, 1, 1, 1, null, null,],
-	[1, 1, 1, 1, 1, 1, 1,],
-	[1, 1, 1, 0, 1, 1, 1,],
-	[1, 1, 1, 1, 1, 1, 1,],
-	[null, null, 1, 1, 1, null, null,],
-	[null, null, 1, 1, 1, null, null,],
+	[null, null, 0, 0, 0, null, null,],
+	[null, null, 0, 0, 0, null, null,],
+	[0, 0, 0, 0, 0, 0, 0,],
+	[0, 0, 0, 0, 1, 1, 0,],
+	[0, 0, 0, 0, 0, 0, 0,],
+	[null, null, 0, 0, 0, null, null,],
+	[null, null, 0, 0, 0, null, null,],
 ]
+
+// let initialBoard = [
+// 	[null, null, 1, 1, 1, null, null,],
+// 	[null, null, 1, 1, 1, null, null,],
+// 	[1, 1, 1, 1, 1, 1, 1,],
+// 	[1, 1, 1, 0, 1, 1, 1,],
+// 	[1, 1, 1, 1, 1, 1, 1,],
+// 	[null, null, 1, 1, 1, null, null,],
+// 	[null, null, 1, 1, 1, null, null,],
+// ]
 
 
 function cleanupBoard() {
@@ -326,6 +349,18 @@ function initGame() {
 	generateChat()
 }
 
+function convertBoardToArray(board) {
+	const arrayBoard = [];
+	for (const col of board.cols) {
+		const arrayCol = [];
+		for (const row of col.rows) {
+			arrayCol.push(row || 0); // Se o valor for nulo, substitui por 0
+		}
+		arrayBoard.push(arrayCol);
+	}
+	return arrayBoard;
+}
+
 function createServer(createServerButton, joinServerButton) {
 
 	function enableButton() {
@@ -363,91 +398,103 @@ function createServer(createServerButton, joinServerButton) {
 	createServerBtn.disabled = true;
 	createServerBtn.classList.add("btn")
 	createServerBtn.addEventListener("click", () => {
+		chatStream = client.join({ user_id: serverPortInput.value });
 
-		function onConnection(socket) { }
 
-		// Receber e exibir mensagem recebida
-		function onData(socket, data) {
-			const { remoteAddress } = socket;
-			console.log("Data received")
-			console.log(JSON.stringify(data));
-			const { type, id, message, myPort } = data;
+		client.newGame({}, (err, result) => {
+			initialBoard = convertBoardToArray(result.board)
+			console.log(initialBoard)
+		})
 
 
 
-			if (type === "message") {
-				processChatInput(myPort, message, currentClient.chatContainer)
-				console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
-			}
+		console.log(chatStream);
+		console.log(initialBoardServer);
 
-			if (type === "move") {
-				turn = currentClient.port
-				initialBoard = message
-				generateBoard(message)
-			}
+		// function onConnection(socket) { }
 
-			if (type === "turn") {
-				turn = message
-				cleanupBoard()
-				generateBoard(initialBoard)
-				generateChat()
-			}
-
-			if (type === "giveup") {
-				alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
-
-				cleanupBoard()
-				currentClient.peer.close()
-				initialBoard = [
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[1, 1, 1, 0, 1, 1, 1,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-
-				]
-				delete currentClient
-				generateMenu()
-			}
-
-			if (type === "endGame") {
-				alert(`Vencedor é: ${message}, voce perdeu.`)
-				currentClient.peer.close()
-				cleanupBoard()
-				initialBoard = [
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[1, 1, 1, 0, 1, 1, 1,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-
-				]
-				delete currentClient
-				generateMenu()
-			}
-		}
-
-		const portNumber = serverPortInput.value;
-		const peer = new Peer(portNumber)
-		currentClient = new Client(portNumber, uuid.v4(), peer)
+		// // Receber e exibir mensagem recebida
+		// function onData(socket, data) {
+		// 	const { remoteAddress } = socket;
+		// 	console.log("Data received")
+		// 	console.log(JSON.stringify(data));
+		// 	const { type, id, message, myPort } = data;
 
 
-		peer.onData = onData
-		peer.onConnection = onConnection
 
-		const intervalo = setInterval(function () {
-			if (peer.connections.length !== 0 && peer.knownHosts.length !== 0) {
-				generateMenuInit(portNumber);
-				createServerBtn.disabled = false;
-				rollBack.disabled = true;
-				// Remova o intervalo
-				clearInterval(intervalo);
-			}
-		}, 1000);
+		// 	if (type === "message") {
+		// 		processChatInput(myPort, message, currentClient.chatContainer)
+		// 		console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
+		// 	}
+
+		// 	if (type === "move") {
+		// 		turn = currentClient.port
+		// 		initialBoard = message
+		// 		generateBoard(message)
+		// 	}
+
+		// 	if (type === "turn") {
+		// 		turn = message
+		// 		cleanupBoard()
+		// 		generateBoard(initialBoard)
+		// 		generateChat()
+		// 	}
+
+		// 	if (type === "giveup") {
+		// 		alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
+
+		// 		cleanupBoard()
+		// 		currentClient.peer.close()
+		// 		initialBoard = [
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[1, 1, 1, 1, 1, 1, 1,],
+		// 			[1, 1, 1, 0, 1, 1, 1,],
+		// 			[1, 1, 1, 1, 1, 1, 1,],
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[null, null, 1, 1, 1, null, null,],
+
+		// 		]
+		// 		delete currentClient
+		// 		generateMenu()
+		// 	}
+
+		// 	if (type === "endGame") {
+		// 		alert(`Vencedor é: ${message}, voce perdeu.`)
+		// 		currentClient.peer.close()
+		// 		cleanupBoard()
+		// 		initialBoard = [
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[1, 1, 1, 1, 1, 1, 1,],
+		// 			[1, 1, 1, 0, 1, 1, 1,],
+		// 			[1, 1, 1, 1, 1, 1, 1,],
+		// 			[null, null, 1, 1, 1, null, null,],
+		// 			[null, null, 1, 1, 1, null, null,],
+
+		// 		]
+		// 		delete currentClient
+		// 		generateMenu()
+		// 	}
+		// }
+
+		// const portNumber = serverPortInput.value;
+		// const peer = new Peer(portNumber)
+		// currentClient = new Client(portNumber, uuid.v4(), peer)
+
+
+		// peer.onData = onData
+		// peer.onConnection = onConnection
+
+		// const intervalo = setInterval(function () {
+		// 	if (peer.connections.length !== 0 && peer.knownHosts.length !== 0) {
+		// 		generateMenuInit(portNumber);
+		// 		createServerBtn.disabled = false;
+		// 		rollBack.disabled = true;
+		// 		// Remova o intervalo
+		// 		clearInterval(intervalo);
+		// 	}
+		// }, 1000);
 
 		createServerBtn.disabled = true;
 		rollBack.disabled = true;
@@ -675,6 +722,7 @@ function processChatInput(id, chatInput, chatElement) {
 
 // pieces.forEach(function(piece, index, array) {
 function generateChat() {
+
 	const chat = document.querySelector("#chat")
 	const chatContainer = document.createElement('div');
 	chatContainer.classList.add('chat');
@@ -695,11 +743,10 @@ function generateChat() {
 	chatInput.addEventListener("keypress", function (event) {
 		if (event.key === "Enter") {
 			event.preventDefault();
-
-			console.log(currentClient)
-			console.log(currentClient.peer)
-			processChatInput(currentClient.port, chatInput.value, messagesContainer);
-			currentClient.peer.broadcastMessage({ type: "message", id: currentClient.id, message: chatInput.value, myPort: currentClient.port })
+			// console.log(currentClient)
+			// console.log(currentClient.peer)
+			// processChatInput(currentClient.port, chatInput.value, messagesContainer);
+			// currentClient.peer.broadcastMessage({ type: "message", id: currentClient.id, message: chatInput.value, myPort: currentClient.port })
 			chatInput.value = ""; // Limpa o campo de entrada após o processamento
 		}
 	});
