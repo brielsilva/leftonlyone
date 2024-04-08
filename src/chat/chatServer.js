@@ -241,6 +241,7 @@ server.addService(chatProto.GameService.service, {
         }
 
         if (games[roomId].turn !== userId) {
+
             console.error(`It's not player ${userId}'s turn.`);
             callback(null, { success: false, message: "Not your turn." });
             return;
@@ -313,12 +314,6 @@ server.addService(chatProto.GameService.service, {
             return;
         }
 
-        if (games[roomId].turn !== userId) {
-            console.error(`It's not player ${userId}'s turn.`);
-            callback(null, { success: false, message: "Not your turn." });
-            return;
-        }
-
         console.log("ALL CHECKED");
 
         // Update the game board
@@ -333,7 +328,9 @@ server.addService(chatProto.GameService.service, {
                 { rows: [null, null, 0, 0, 0, null, null,], }
             ]
         }
+        console.log(games[roomId].turn)
         games[roomId].turn = switchTurn(userId, games[roomId].users);
+        console.log(games[roomId].turn)
 
 
         // Broadcast the new board state to all players

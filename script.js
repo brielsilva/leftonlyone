@@ -153,7 +153,7 @@ function startGame(roomId, userId) {
 				return
 			}
 			if (response.checkGiveUp) {
-				alert(`${turn} venceu, oponente se rendeu`)
+				alert(`${response.turn} venceu, oponente se rendeu`)
 				cleanupBoard()
 				generateMenu()
 				return
