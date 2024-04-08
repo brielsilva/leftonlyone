@@ -61,13 +61,13 @@ function newGame(call, callback) {
     const response = {
         board: {
             cols: [
-                { rows: [null, null, 0, 0, 0, null, null,] },
-                { rows: [null, null, 0, 0, 0, null, null,], },
-                { rows: [0, 0, 0, 0, 0, 0, 0,], },
-                { rows: [0, 0, 0, 0, 1, 1, 0,], },
-                { rows: [0, 0, 0, 0, 0, 0, 0,], },
-                { rows: [null, null, 0, 0, 0, null, null,], },
-                { rows: [null, null, 0, 0, 0, null, null,], }
+                { rows: [null, null, 1, 1, 1, null, null,] },
+                { rows: [null, null, 1, 1, 1, null, null,], },
+                { rows: [1, 1, 1, 1, 1, 1, 1,], },
+                { rows: [1, 1, 1, 0, 1, 1, 1,], },
+                { rows: [1, 1, 1, 1, 1, 1, 1,], },
+                { rows: [null, null, 1, 1, 1, null, null,], },
+                { rows: [null, null, 1, 1, 1, null, null,], }
             ]
         }
     };

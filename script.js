@@ -1,5 +1,82 @@
-const grpc = require("@grpc/grpc-js");
-const protoLoader = require("@grpc/proto-loader");
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+const readline = require('readline');
+const packageDefinition = protoLoader.loadSync('./src/chat/chat.proto', {});
+const chatProto = grpc.loadPackageDefinition(packageDefinition).chat;
+
+const client = new chatProto.ChatService('localhost:50051', grpc.credentials.createInsecure());
+const gameClient = new chatProto.GameService('localhost:50051', grpc.credentials.createInsecure());
+
+let room_id;
+
+let user_id;
+
+let messagesContainer;
+
+let chat_stream;
+
+let game_stream;
+
+let host;
+
+function createRoom(roomNumber) {
+	client.CreateRoom({ roomId: roomNumber, userId: user_id }, (error, response) => {
+		if (error) {
+			console.error('Error creating room:', error.message);
+		} else {
+			console.log(response)
+			room_id = response.roomId;
+			startChat(user_id, room_id, false);
+		}
+	});
+}
+
+function joinRoom(roomNumber, user_id) {
+	client.JoinRoom({ roomId: roomNumber, userId: user_id }, (error, response) => {
+		if (error) {
+			console.error('Error joining room:', error.message);
+		} else if (response.success) {
+			host = response.host;
+			console.log(`Joined room: ${roomNumber}`);
+			startChat(user_id, response.roomId, true);
+		}
+	});
+}
+
+function sendMessage(user_id, room_id, message) {
+	console.log("Calling SendMessage");
+	console.log({ userId: user_id, roomId: room_id, message })
+	chat_stream.write({ userId: user_id, roomId: room_id, message })
+}
+
+const portsInGame = [];
+
+let first = false
+
+function startChat(user_id, room_id, second) {
+	chat_stream = client.Chat();
+
+	chat_stream.write({ userId: user_id, roomId: room_id, message: "i" })
+
+	chat_stream.on('data', (message) => {
+		console.log("RECIEVING INPUT");
+		console.log(message);
+		if (message.userId === "System") {
+			console.log(message)
+			generateMenuInit(user_id);
+			return;
+		}
+
+		console.log(message);
+		if (!first && message.message === "i") {
+			first = true;
+			return;
+		}
+		processChatInput(message.userId, message.message, messagesContainer)
+	});
+}
+
+
 const Peer = require("./Peer");
 const uuid = require('uuid');
 let table = document.querySelector("#table")
@@ -7,7 +84,6 @@ let timeMe = true //true:bottom(black), false: top(white)
 let pieceMe = true //true:black, false:white
 // console.log(pieces)
 
-const REMOTE_SERVER = "0.0.0.0:3000"
 let turn;
 
 class Client {
@@ -18,7 +94,6 @@ class Client {
 	}
 }
 
-let client; // gRPC client
 let chatStream; // gRPC chat stream
 let boardStream; // gRPC board stream
 
@@ -32,16 +107,77 @@ const proto = grpc.loadPackageDefinition(
 	})
 );
 
-client = new proto.gamePackage.GameAndChat(
-	REMOTE_SERVER,
-	grpc.credentials.createInsecure()
-);
+
 
 
 let currentClient;
 let enemyClient;
+function convertBoardToArray(board) {
+	const arrayBoard = [];
+	for (const col of board.cols) {
+		const arrayCol = [];
+		for (const row of col.rows) {
+			arrayCol.push(row || 0); // Se o valor for nulo, substitui por 0
+		}
+		arrayBoard.push(arrayCol);
+	}
+	return arrayBoard;
+}
 
-const portsInGame = []
+function convertArrayToBoard(arrayBoard) {
+	const board = { cols: [] };
+	for (const col of arrayBoard) {
+		const rows = [];
+		for (const cell of col) {
+			rows.push(cell); // Adiciona o valor da célula ao array de rows
+		}
+		board.cols.push({ rows }); // Adiciona o array de rows ao objeto cols
+	}
+	return board;
+}
+// Function to start a game
+function startGame(roomId, userId) {
+	const game_stream = gameClient.StartGame();
+
+	generateChat()
+	// Handle incoming messages from the server
+	game_stream.on('data', function (response) {
+		console.log("response >>>")
+		console.log(response);
+		if (response.success) {
+			initialBoard = convertBoardToArray(response.board)
+			turn = response.turn;
+			if (response.checkVictory) {
+				alert(`${turn} venceu, oponente se rendeu`)
+				cleanupBoard()
+				generateMenu()
+				return
+			}
+			if (verifyWinner()) {
+				alert(`${turn} venceu`)
+				cleanupBoard()
+				generateMenu()
+				return
+			}
+			generateBoard(initialBoard)
+		} else {
+			console.error("Failed to start game:", response.message);
+		}
+	});
+
+	// Handle errors
+	game_stream.on('error', function (error) {
+		console.error("An error occurred:", error.message);
+	});
+
+	// Handle stream end - server closes the stream
+	game_stream.on('end', function () {
+		console.log("Stream ended by the server");
+	});
+
+	// Send a request to start the game
+	game_stream.write({ roomId: roomId, userId: userId });
+}
 
 function generateBtn(portHost, divElement) {
 	const divContainer = document.createElement("div");
@@ -50,20 +186,26 @@ function generateBtn(portHost, divElement) {
 	initGameBtn.type = "button";
 	initGameBtn.id = "createServerPortButton";
 	initGameBtn.textContent = "Iniciar Jogo - Definir Turno";
-	initGameBtn.disabled = currentClient.peer.port === portHost ? false : true;
+	initGameBtn.disabled = user_id === portHost ? false : true;
 	initGameBtn.classList.add("btn")
 	initGameBtn.addEventListener("click", (e) => {
 		console.log("Iniciando Jogo")
 		e.preventDefault()
-		console.log(currentClient.peer)
-		console.log(currentClient.peer.port)
-		console.log(currentClient.peer.knownHosts[0].port)
-		console.log(portHost)
-		portsInGame.push(parseInt(portHost))
-		portsInGame.push(parseInt(currentClient.peer.knownHosts[0].port))
-		const turnDefine = defineTurn(portsInGame)
-		currentClient.peer.broadcastMessage({ type: "turn", message: turnDefine })
-		cleanupBoard()
+		const turnDefine = defineTurn(portsInGame, room_id)
+		startGame(room_id, user_id, turnDefine);
+		// gameClient.StartGame({ roomId: room_id, userId: user_id }, (err, response) => {
+		// 	let initialBoard = convertBoardToArray(response.board);
+		// 	turn = turnDefine;
+		// 	generateBoard(initialBoard)
+		// 	generateChat()
+		// })
+
+		// Criar a Stream do Jogo para o host e o outro cara
+		// Vai enviar uma chamada para o server
+		// O server vai passar por todos os usuários e gerar uma stream de jogo e retornar para cara um
+
+		//currentClient.peer.broadcastMessage({ type: "turn", message: turnDefine })
+		//cleanupBoard()
 		// generateBoard(initialBoard)
 		// generateChat()
 	})
@@ -90,15 +232,15 @@ let initialBoard = [
 	[null, null, 0, 0, 0, null, null,],
 ]
 
-// let initialBoard = [
-// 	[null, null, 1, 1, 1, null, null,],
-// 	[null, null, 1, 1, 1, null, null,],
-// 	[1, 1, 1, 1, 1, 1, 1,],
-// 	[1, 1, 1, 0, 1, 1, 1,],
-// 	[1, 1, 1, 1, 1, 1, 1,],
-// 	[null, null, 1, 1, 1, null, null,],
-// 	[null, null, 1, 1, 1, null, null,],
-// ]
+initialBoard = [
+	[null, null, 1, 1, 1, null, null,],
+	[null, null, 1, 1, 1, null, null,],
+	[1, 1, 1, 1, 1, 1, 1,],
+	[1, 1, 1, 0, 1, 1, 1,],
+	[1, 1, 1, 1, 1, 1, 1,],
+	[null, null, 1, 1, 1, null, null,],
+	[null, null, 1, 1, 1, null, null,],
+]
 
 
 function cleanupBoard() {
@@ -145,7 +287,7 @@ function generateBoard(boardArray) {
 	turnTitle.textContent = `Turno Atual: ${turn}`
 
 	const playerTitle = document.createElement('p')
-	playerTitle.textContent = `Você é: ${currentClient.port}`
+	playerTitle.textContent = `Você é: ${user_id}`
 
 	turnElement.appendChild(turnTitle)
 	turnElement.appendChild(playerTitle)
@@ -261,9 +403,10 @@ function generateBoard(boardArray) {
 	btnGiveUp.addEventListener("click", (e) => {
 		e.preventDefault()
 
-		alert(`O jogador ${currentClient.port} desistiu`)
-		currentClient.peer.broadcastMessage({ type: 'giveup', message: currentClient.port })
-		currentClient.peer.close()
+		gameClient.giveGame({ userId: user_id, roomId: room_id }, (err, response) => {
+			alert(`${user_id} desistiu`)
+		})
+
 		cleanupBoard()
 		initialBoard = [
 			[null, null, 1, 1, 1, null, null,],
@@ -349,18 +492,6 @@ function initGame() {
 	generateChat()
 }
 
-function convertBoardToArray(board) {
-	const arrayBoard = [];
-	for (const col of board.cols) {
-		const arrayCol = [];
-		for (const row of col.rows) {
-			arrayCol.push(row || 0); // Se o valor for nulo, substitui por 0
-		}
-		arrayBoard.push(arrayCol);
-	}
-	return arrayBoard;
-}
-
 function createServer(createServerButton, joinServerButton) {
 
 	function enableButton() {
@@ -381,7 +512,7 @@ function createServer(createServerButton, joinServerButton) {
 	// Adicionar input para a porta
 	const portLabel = document.createElement("label");
 	portLabel.setAttribute("for", "serverPort");
-	portLabel.textContent = "Porta do Servidor:";
+	portLabel.textContent = "Número da Sala:";
 	form.appendChild(portLabel);
 
 	const serverPortInput = document.createElement("input");
@@ -391,6 +522,19 @@ function createServer(createServerButton, joinServerButton) {
 	serverPortInput.addEventListener("input", enableButton)
 	form.appendChild(serverPortInput);
 
+	// Adicionar input para a porta
+	const userIdLabel = document.createElement("label");
+	userIdLabel.setAttribute("for", "serverPort");
+	userIdLabel.textContent = "Seu Nome:";
+	form.appendChild(userIdLabel);
+
+	const userIdInput = document.createElement("input");
+	userIdInput.type = "text";
+	userIdInput.id = "userName";
+	userIdInput.name = "userName";
+	userIdInput.addEventListener("input", enableButton)
+	form.appendChild(userIdInput);
+
 	const createServerBtn = document.createElement("button");
 	createServerBtn.type = "button";
 	createServerBtn.id = "createServerPortButton";
@@ -398,93 +542,11 @@ function createServer(createServerButton, joinServerButton) {
 	createServerBtn.disabled = true;
 	createServerBtn.classList.add("btn")
 	createServerBtn.addEventListener("click", () => {
-		chatStream = client.join({ user_id: serverPortInput.value });
 
+		const portNumber = serverPortInput.value;
+		user_id = userIdInput.value;
 
-		client.newGame({}, (err, result) => {
-			initialBoard = convertBoardToArray(result.board)
-			console.log(initialBoard)
-		})
-
-
-
-		console.log(chatStream);
-		console.log(initialBoardServer);
-
-		// function onConnection(socket) { }
-
-		// // Receber e exibir mensagem recebida
-		// function onData(socket, data) {
-		// 	const { remoteAddress } = socket;
-		// 	console.log("Data received")
-		// 	console.log(JSON.stringify(data));
-		// 	const { type, id, message, myPort } = data;
-
-
-
-		// 	if (type === "message") {
-		// 		processChatInput(myPort, message, currentClient.chatContainer)
-		// 		console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
-		// 	}
-
-		// 	if (type === "move") {
-		// 		turn = currentClient.port
-		// 		initialBoard = message
-		// 		generateBoard(message)
-		// 	}
-
-		// 	if (type === "turn") {
-		// 		turn = message
-		// 		cleanupBoard()
-		// 		generateBoard(initialBoard)
-		// 		generateChat()
-		// 	}
-
-		// 	if (type === "giveup") {
-		// 		alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
-
-		// 		cleanupBoard()
-		// 		currentClient.peer.close()
-		// 		initialBoard = [
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[1, 1, 1, 1, 1, 1, 1,],
-		// 			[1, 1, 1, 0, 1, 1, 1,],
-		// 			[1, 1, 1, 1, 1, 1, 1,],
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[null, null, 1, 1, 1, null, null,],
-
-		// 		]
-		// 		delete currentClient
-		// 		generateMenu()
-		// 	}
-
-		// 	if (type === "endGame") {
-		// 		alert(`Vencedor é: ${message}, voce perdeu.`)
-		// 		currentClient.peer.close()
-		// 		cleanupBoard()
-		// 		initialBoard = [
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[1, 1, 1, 1, 1, 1, 1,],
-		// 			[1, 1, 1, 0, 1, 1, 1,],
-		// 			[1, 1, 1, 1, 1, 1, 1,],
-		// 			[null, null, 1, 1, 1, null, null,],
-		// 			[null, null, 1, 1, 1, null, null,],
-
-		// 		]
-		// 		delete currentClient
-		// 		generateMenu()
-		// 	}
-		// }
-
-		// const portNumber = serverPortInput.value;
-		// const peer = new Peer(portNumber)
-		// currentClient = new Client(portNumber, uuid.v4(), peer)
-
-
-		// peer.onData = onData
-		// peer.onConnection = onConnection
+		createRoom(portNumber)
 
 		// const intervalo = setInterval(function () {
 		// 	if (peer.connections.length !== 0 && peer.knownHosts.length !== 0) {
@@ -538,23 +600,10 @@ function joinServer(createServerButton, joinServerButton) {
 	form.removeChild(createServerButton);
 	form.removeChild(joinServerButton);
 
-
-	const clientAddressLabel = document.createElement("label");
-	clientAddressLabel.setAttribute("for", "clientAddress");
-	clientAddressLabel.textContent = "Porta do Cliente:";
-	form.appendChild(clientAddressLabel);
-
-	const clientAddressInput = document.createElement("input");
-	clientAddressInput.type = "text";
-	clientAddressInput.id = "clientAddress";
-	clientAddressInput.name = "clientAddress";
-	clientAddressInput.addEventListener("input", enableButton)
-	form.appendChild(clientAddressInput);
-
 	// Adicionar input para o endereço do servidor
 	const addressLabel = document.createElement("label");
 	addressLabel.setAttribute("for", "serverAddress");
-	addressLabel.textContent = "Endereço do Servidor:";
+	addressLabel.textContent = "Número da Sala:";
 	form.appendChild(addressLabel);
 
 	const serverAddressInput = document.createElement("input");
@@ -563,6 +612,19 @@ function joinServer(createServerButton, joinServerButton) {
 	serverAddressInput.name = "serverAddress";
 	serverAddressInput.addEventListener("input", enableButton)
 	form.appendChild(serverAddressInput);
+
+	// Adicionar input para o endereço do servidor
+	const userIdLabel = document.createElement("label");
+	userIdLabel.setAttribute("for", "serverAddress");
+	userIdLabel.textContent = "Seu Nome:";
+	form.appendChild(userIdLabel);
+
+	const userIdInput = document.createElement("input");
+	userIdInput.type = "text";
+	userIdInput.id = "userIdInput";
+	userIdInput.name = "userIdInput";
+	userIdInput.addEventListener("input", enableButton)
+	form.appendChild(userIdInput);
 
 	const joinServerBtn = document.createElement("button");
 	joinServerBtn.type = "button";
@@ -573,91 +635,31 @@ function joinServer(createServerButton, joinServerButton) {
 	joinServerBtn.addEventListener("click", () => {
 
 
-		function onConnection(socket) { }
+		const portNumber = serverAddressInput.value;
+		room_id = portNumber;
+		user_id = userIdInput.value;
 
-		// Receber e exibir mensagem recebida
-		function onData(socket, data) {
-			const { remoteAddress } = socket;
-			const { type, id, message, myPort } = data;
+		joinRoom(room_id, user_id);
+		const intervalId = setInterval(() => {
+			console.log("Intervalo")
+			gameClient.verifyStatus({ roomId: room_id }, (err, response) => {
+				console.log(response);
+				if (err) {
+					console.error('Error verifying status:', err);
+					// Optionally clear the interval if an error occurs or under certain conditions
+					// clearInterval(intervalId);
+				} else if (response.success) {
+					startGame(room_id, user_id);
+					// If you want to stop verifying after success, clear the interval like this:
+					clearInterval(intervalId);
+				}
+			});
+		}, 4000); // 1000 milliseconds = 1 second
 
-
-			if (type === "message") {
-				processChatInput(myPort, message, currentClient.chatContainer)
-				console.log(`\n[Message from ${remoteAddress}:${myPort}]: ${message}`);
-			}
-
-			if (type === "move") {
-				turn = currentClient.port
-				initialBoard = message
-				generateBoard(message)
-			}
-
-
-			if (type === "turn") {
-				turn = message
-				currentClient.peer.broadcastMessage({ type: "turn", message: message })
-				cleanupBoard()
-				generateBoard(initialBoard)
-				generateChat()
-			}
-
-			if (type === "giveup") {
-				alert(`O jogador ${message} desistiu, você ganhou ${currentClient.port}`)
-
-				cleanupBoard()
-				currentClient.peer.close()
-				delete currentClient
-				initialBoard = [
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[1, 1, 1, 0, 1, 1, 1,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-
-				]
-				generateMenu()
-			}
-
-			if (type === "endGame") {
-				alert(`Vencedor é: ${message}, voce perdeu.`)
-				currentClient.peer.close()
-				cleanupBoard()
-				initialBoard = [
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[1, 1, 1, 0, 1, 1, 1,],
-					[1, 1, 1, 1, 1, 1, 1,],
-					[null, null, 1, 1, 1, null, null,],
-					[null, null, 1, 1, 1, null, null,],
-
-				]
-				delete currentClient
-				generateMenu()
-			}
-		}
-
-		const portNumber = clientAddressInput.value;
-		const peer = new Peer(portNumber)
-		currentClient = new Client(portNumber, uuid.v4(), peer)
-		const host = serverAddressInput.value;
-
-		peer.connectTo(host)
+		generateMenuInit(host);
 
 
-		peer.onData = onData
-		peer.onConnection = onConnection
 
-		const intervalo = setInterval(function () {
-			if (peer.connections !== 0 || peer.knownHosts !== 0) {
-				generateMenuInit(host);
-
-				// Remova o intervalo
-				clearInterval(intervalo);
-			}
-		}, 1000);
 
 	})
 	form.appendChild(joinServerBtn);
@@ -710,7 +712,7 @@ function processChatInput(id, chatInput, chatElement) {
 	messageElement.classList.add('message');
 	const messageContent = document.createElement('span');
 	messageContent.textContent = `${id}: ${chatInput}`
-	if (currentClient.port !== id) {
+	if (user_id !== id) {
 		messageContent.classList.add('enemy')
 	} else {
 		messageContent.classList.add('player')
@@ -727,10 +729,9 @@ function generateChat() {
 	const chatContainer = document.createElement('div');
 	chatContainer.classList.add('chat');
 
-	const messagesContainer = document.createElement('div');
+	messagesContainer = document.createElement('div');
 	messagesContainer.classList.add('messages-container');
 
-	currentClient.chatContainer = messagesContainer
 
 	const chatInput = document.createElement("input");
 	chatInput.type = "text";
@@ -743,10 +744,12 @@ function generateChat() {
 	chatInput.addEventListener("keypress", function (event) {
 		if (event.key === "Enter") {
 			event.preventDefault();
-			// console.log(currentClient)
-			// console.log(currentClient.peer)
-			// processChatInput(currentClient.port, chatInput.value, messagesContainer);
-			// currentClient.peer.broadcastMessage({ type: "message", id: currentClient.id, message: chatInput.value, myPort: currentClient.port })
+
+			console.log(user_id)
+			console.log(room_id);
+			console.log(chatInput.value);
+			sendMessage(user_id, room_id, chatInput.value);
+			processChatInput(user_id, chatInput.value, messagesContainer);
 			chatInput.value = ""; // Limpa o campo de entrada após o processamento
 		}
 	});
@@ -767,7 +770,7 @@ function verifyWinner() {
 		})
 	})
 	console.log(sum)
-	if (sum == 1) {
+	if (sum == 1 || sum == 0) {
 		return true;
 	}
 }
@@ -802,38 +805,15 @@ function update(currentPos, newPos, intermediate) {
 	initialBoard[newPos[0]][newPos[1]] = 1;
 	initialBoard[intermediate[0]][intermediate[1]] = 0;
 
-	if (verifyWinner()) {
-		alert(`Vencedor é: ${turn}`)
-		currentClient.peer.broadcastMessage({ type: 'endGame', message: currentClient.port })
-		currentClient.peer.close()
-		cleanupBoard()
-		initialBoard = [
-			[null, null, 1, 1, 1, null, null,],
-			[null, null, 1, 1, 1, null, null,],
-			[1, 1, 1, 1, 1, 1, 1,],
-			[1, 1, 1, 0, 1, 1, 1,],
-			[1, 1, 1, 1, 1, 1, 1,],
-			[null, null, 1, 1, 1, null, null,],
-			[null, null, 1, 1, 1, null, null,],
 
-		]
-		delete currentClient
-		generateMenu()
-		return
-	}
+	gameClient.sendMove({ roomId: room_id, userId: user_id, board: convertArrayToBoard(initialBoard) }, (err, response) => { })
 
-	currentClient.peer.broadcastMessage({ type: "move", message: initialBoard, id: currentClient.id, myPort: currentClient.port })
-	turn = currentClient.peer.knownHosts[0].port
-
-	generateBoard(initialBoard)
 }
 
 function verifyValidMove(turn, currentPos, newPos) {
 	console.log("VERIFICANDO MOVIMENTO")
 	console.log(turn)
-	console.log(currentClient.port)
-	console.log(parseInt(currentClient.port) !== turn)
-	if (parseInt(currentClient.port) !== parseInt(turn)) {
+	if (parseInt(user_id) !== parseInt(turn)) {
 		return false;
 	}
 	console.log("Passou")

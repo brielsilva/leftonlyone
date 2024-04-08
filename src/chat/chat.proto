@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package chat;
+
+message ChatMessage {
+  string user_id = 1;
+  string room_id = 2; // Add room_id to know which room the message is for
+  string message = 3;
+  string type = 4;
+}
+
+message CreateRoomRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message CreateRoomResponse {
+  string room_id = 1;
+}
+
+message JoinRoomRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message JoinRoomResponse {
+  bool success = 1;
+  string host = 2;
+  string room_id = 3;
+}
+
+
+message RowOfPieces {
+    repeated int32 rows = 1;
+}
+
+message GiveUpRequest {
+  string user_giving_in = 1;
+  string user_win = 2;
+  string room_id = 3;
+}
+
+message EndTurnRequest {
+  string userId = 1;
+  string roomId = 2;
+}
+
+message NewTurnResponse {
+  string userId = 1;
+  string roomId = 2;
+}
+
+message Board {
+    repeated RowOfPieces cols = 1;
+}
+
+message Move {
+  Board board = 1;
+  string room_id = 2;
+  string user_id = 3;
+}
+
+
+message StartGameRequest {
+  string roomId = 1;
+  string userId = 2;
+  string turn = 3;
+}
+
+
+message StartGameResponse {
+  bool success = 1; 
+  string message = 2; 
+  Board board = 3; 
+  string turn = 4;
+  bool checkVictory = 5;
+}
+
+message RoomStatus {
+  string room_id = 1;
+  bool success = 2;
+}
+
+message GiveUp {
+  string user_id = 1;
+  string room_id = 2;
+}
+
+
+service ChatService {
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
+  rpc Chat(stream ChatMessage) returns (stream ChatMessage);
+}
+
+service GameService {
+  rpc StartGame(stream StartGameRequest) returns (stream StartGameResponse);
+  rpc sendMove(Move) returns (Move);
+  rpc verifyStatus(RoomStatus) returns(RoomStatus);
+  rpc giveGame(GiveUp) returns (GiveUp);
+}
