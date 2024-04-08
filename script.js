@@ -146,19 +146,19 @@ function startGame(roomId, userId) {
 		console.log(response);
 		if (response.success) {
 			initialBoard = convertBoardToArray(response.board)
-			turn = response.turn;
-			if (response.checkVictory) {
-				alert(`${turn} venceu, oponente se rendeu`)
-				cleanupBoard()
-				generateMenu()
-				return
-			}
-			if (verifyWinner()) {
+			if (response.checkWinner) {
 				alert(`${turn} venceu`)
 				cleanupBoard()
 				generateMenu()
 				return
 			}
+			if (response.checkGiveUp) {
+				alert(`${turn} venceu, oponente se rendeu`)
+				cleanupBoard()
+				generateMenu()
+				return
+			}
+			turn = response.turn;
 			generateBoard(initialBoard)
 		} else {
 			console.error("Failed to start game:", response.message);
@@ -770,7 +770,7 @@ function verifyWinner() {
 		})
 	})
 	console.log(sum)
-	if (sum == 1 || sum == 0) {
+	if (sum == 1) {
 		return true;
 	}
 }
@@ -805,8 +805,15 @@ function update(currentPos, newPos, intermediate) {
 	initialBoard[newPos[0]][newPos[1]] = 1;
 	initialBoard[intermediate[0]][intermediate[1]] = 0;
 
+	if (verifyWinner) {
+		gameClient.sendVictory({ roomId: room_id, userId: user_id, winner: user_id, board: convertArrayToBoard(initialBoard) }, (err, response) => { })
+		cleanupBoard()
+		generateMenu()
+		return;
+	}
 
 	gameClient.sendMove({ roomId: room_id, userId: user_id, board: convertArrayToBoard(initialBoard) }, (err, response) => { })
+	return;
 
 }
 

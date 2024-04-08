@@ -73,7 +73,8 @@ message StartGameResponse {
   string message = 2; 
   Board board = 3; 
   string turn = 4;
-  bool checkVictory = 5;
+  bool checkGiveUp = 5;
+  bool checkWinner = 6;
 }
 
 message RoomStatus {
@@ -86,6 +87,12 @@ message GiveUp {
   string room_id = 2;
 }
 
+message Winner {
+  string user_id = 1;
+  string room_id = 2;
+  string winner_id = 3;
+  Board board = 4;
+}
 
 service ChatService {
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
@@ -98,4 +105,5 @@ service GameService {
   rpc sendMove(Move) returns (Move);
   rpc verifyStatus(RoomStatus) returns(RoomStatus);
   rpc giveGame(GiveUp) returns (GiveUp);
+  rpc sendVictory(Winner) returns (Winner);
 }

@@ -225,14 +225,34 @@ server.addService(chatProto.GameService.service, {
         }
     },
 
-    SendTurn: (call, callback) => {
-        const { roomId, nextUserId, userId } = call.request;
-        if (games[roomId]) {
-            games[roomId].currentTurn = nextUserId;
-            callback(null, { success: true, message: "Turno atualizado." });
-        } else {
-            callback(new Error("Jogo não encontrado."));
+    sendVictory: (call, callback) => {
+        const { roomId, userId, board } = call.request;
+        console.log(games[roomId])
+        if (!games[roomId]) {
+            console.error(`Room ${roomId} does not exist.`);
+            callback(null, { success: false, message: "Room does not exist." });
+            return;
         }
+
+        if (!Object.keys(games[roomId].users).includes(userId)) {
+            console.error(`Player ${userId} is not part of room ${roomId}.`);
+            callback(null, { success: false, message: "Player is not part of the room." });
+            return;
+        }
+
+        if (games[roomId].turn !== userId) {
+            console.error(`It's not player ${userId}'s turn.`);
+            callback(null, { success: false, message: "Not your turn." });
+            return;
+        }
+
+        console.log("ALL CHECKED");
+
+        // Broadcast the new board state to all players
+        Object.values(games[roomId].users).forEach(playerCall => {
+            playerCall.write({ success: true, board: games[roomId].board, turn: games[roomId].turn, checkWinner: true });
+        });
+
     },
 
     sendMove: (call, callback) => {
@@ -318,7 +338,7 @@ server.addService(chatProto.GameService.service, {
 
         // Broadcast the new board state to all players
         Object.values(games[roomId].users).forEach(playerCall => {
-            playerCall.write({ success: true, board: games[roomId].board, turn: games[roomId].turn, checkVictory: true });
+            playerCall.write({ success: true, board: games[roomId].board, turn: games[roomId].turn, checkGiveUp: true });
         });
 
     },
