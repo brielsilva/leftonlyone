@@ -175,17 +175,17 @@ server.addService(chatProto.GameService.service, {
                         { rows: [null, null, 0, 0, 0, null, null,], }
                     ]
                 }
-                // games[roomId].board = {
-                //     cols: [
-                //         { rows: [null, null, 1, 1, 1, null, null,] },
-                //         { rows: [null, null, 1, 1, 1, null, null,], },
-                //         { rows: [1, 1, 1, 1, 1, 1, 1,], },
-                //         { rows: [1, 1, 1, 0, 1, 1, 1,], },
-                //         { rows: [1, 1, 1, 1, 1, 1, 1,], },
-                //         { rows: [null, null, 1, 1, 1, null, null,], },
-                //         { rows: [null, null, 1, 1, 1, null, null,], }
-                //     ]
-                // }
+                games[roomId].board = {
+                    cols: [
+                        { rows: [null, null, 1, 1, 1, null, null,] },
+                        { rows: [null, null, 1, 1, 1, null, null,], },
+                        { rows: [1, 1, 1, 1, 1, 1, 1,], },
+                        { rows: [1, 1, 1, 0, 1, 1, 1,], },
+                        { rows: [1, 1, 1, 1, 1, 1, 1,], },
+                        { rows: [null, null, 1, 1, 1, null, null,], },
+                        { rows: [null, null, 1, 1, 1, null, null,], }
+                    ]
+                }
                 games[roomId].status = "waiting";
                 if (Object.values(games[roomId].users).every(user => user !== null)) {
                     const ports = []

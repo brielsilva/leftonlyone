@@ -805,7 +805,7 @@ function update(currentPos, newPos, intermediate) {
 	initialBoard[newPos[0]][newPos[1]] = 1;
 	initialBoard[intermediate[0]][intermediate[1]] = 0;
 
-	if (verifyWinner) {
+	if (verifyWinner()) {
 		gameClient.sendVictory({ roomId: room_id, userId: user_id, winner: user_id, board: convertArrayToBoard(initialBoard) }, (err, response) => { })
 		cleanupBoard()
 		generateMenu()
